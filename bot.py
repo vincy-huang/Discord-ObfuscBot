@@ -32,6 +32,11 @@ TOKEN = os.environ["DISCORD_TOKEN"]
 GUILD_ID = int(os.environ["DISCORD_GUILD_ID"])
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 STAFF_ROLE_NAME = os.environ.get("STAFF_ROLE_NAME", "Staff")
+COMMAND_ROLE_NAMES = {
+    part.strip()
+    for part in os.environ.get("COMMAND_ROLE_NAMES", "Staff,RA").split(",")
+    if part.strip()
+} or {STAFF_ROLE_NAME}
 SESSIONS_CATEGORY = os.environ.get("SESSIONS_CATEGORY", "Sessions")
 STAFF_CATEGORY = os.environ.get("STAFF_CATEGORY", "Staff")
 
@@ -112,8 +117,9 @@ def find_session(session_id: str) -> dict | None:
 
 
 def is_staff(interaction: discord.Interaction) -> bool:
-    role = staff_role(interaction.guild)
-    return role is not None and role in getattr(interaction.user, "roles", [])
+    """Command gate. Staff or RA. The mirror overwrite still uses Staff only."""
+    roles = getattr(interaction.user, "roles", [])
+    return any(getattr(role, "name", None) in COMMAND_ROLE_NAMES for role in roles)
 
 
 def find_category(guild: discord.Guild, name: str) -> discord.CategoryChannel | None:
@@ -330,7 +336,7 @@ async def start(
     minutes: app_commands.Range[int, 1, 15] = 8,
 ):
     if not is_staff(interaction):
-        await interaction.response.send_message("Staff only.", ephemeral=True)
+        await interaction.response.send_message("Staff or RA only.", ephemeral=True)
         return
     room = interaction.channel
     if not isinstance(room, discord.TextChannel):
@@ -420,7 +426,7 @@ async def start(
 @app_commands.describe(session_id="Study id, e.g. s014")
 async def stop(interaction: discord.Interaction, session_id: str):
     if not is_staff(interaction):
-        await interaction.response.send_message("Staff only.", ephemeral=True)
+        await interaction.response.send_message("Staff or RA only.", ephemeral=True)
         return
     note = await close_session(session_id, "staff")
     await interaction.response.send_message(note, ephemeral=True)
@@ -430,7 +436,7 @@ async def stop(interaction: discord.Interaction, session_id: str):
 @app_commands.describe(session_id="Study id, e.g. s014")
 async def status(interaction: discord.Interaction, session_id: str):
     if not is_staff(interaction):
-        await interaction.response.send_message("Staff only.", ephemeral=True)
+        await interaction.response.send_message("Staff or RA only.", ephemeral=True)
         return
     match = find_session(session_id)
     if match is None:
