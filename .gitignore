@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+transcripts/
+sessions.json
+assignments.csv
+__pycache__/
+.venv/
+*.pyc
+.DS_Store
