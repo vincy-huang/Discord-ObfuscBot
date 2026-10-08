@@ -3,6 +3,29 @@
 
 This is a Discord chatbot tool designed to create a space for hosting experimental chats between a human participant pair or between a human participant and an chatbot. This tool is made to make the experimental conditions blind to the research experimenter as much as possible within the constraints of the Discord environment through tinkering arround the various permissions on Discord. By serving as the sole intermediary between the researcher and the participants, this tool eliminates experimenter bias during live data collection and interaction.
 
+## How to Set Up the Experiment Discord Server: Roles, Categories, and Channels
+1. [Download Discord]
+1. [Create a server]
+1. [Discord Developer Portal]
+   * Bot permission specifications & get the app link
+1. [Allow Discord Developer Mode]
+### Discord Role
+1. Create:
+   * Staff
+   * RA
+   * Condition-1
+   * Condition-2
+        > Note: The study supervisors may want to hide what `Condition-1` and `Condition-1` really are!
+### Discord Categories:
+1. Create:
+   * Staffs
+   * Sessions
+  
+### Discord Channels:
+1. Create a day in advance for each new experiment session, for example:
+   * `s01` for session 01
+   * `s-pi01` for pilot 01
+
 
 ## How to Run the Bot
 1. Download this repo's latest release (TBA) onto your local machine. The newly saved folder should have the same name as this repo `Discord-ObfuscBot`.
