@@ -6,15 +6,25 @@ This is a Discord chatbot tool designed to create a space for hosting experiment
 
 ## How to Run the Bot
 1. Download this repo's latest release (TBA) onto your local machine. The newly saved folder should have the same name as this repo `Discord-ObfuscBot`.
-2. Open your machine's Terminal application at the saved `Discord-ObfuscBot` folder.
-3. [***Requirements***]
-4. [***Activate environment for python scripts***]
-5. Copy and paste the following command into your Terminal and press **Enter** on your keyboard: 
-> ```python bot.py```
-6. [***Open Discord***]
-7. [***Invite bot***]
+1. Set up a Discord server following this Discord Specs Guide [**Working in progress--will have to link this**]
+1. Open your machine's Terminal application at the saved `Discord-ObfuscBot` folder.
+1. [***Requirements***]
+    * [Python & package requirements] for running the bot 
+        > (This is the minimal requirement for running the bot locally)
+    * [Render] for backend
+    * [MongoDB Atlas] for cloud database
+        > Randomized participant condition sheet & session data exports storage
+1. [***Activate environment for python scripts***]
+1. Copy and paste the following command into your Terminal and press **Enter** on your keyboard: 
+    > ```python bot.py```
+1. [***Open Discord***]
+1. [***Invite bot***]
 
-> ***Instruction still in progress***
+## How to Test the Bot on One Machine
+> [**Work in progress**]
+
+
+> ***🚧 Instruction still in progress 🚧 ***
 
 
 ## Reference
