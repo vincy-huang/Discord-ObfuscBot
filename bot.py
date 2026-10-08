@@ -501,14 +501,25 @@ async def status(interaction: discord.Interaction, session_id: str):
     )
 
 
+async def announce_relay() -> None:
+    """Print only after /health answers. The wake sleeps, so it stays off the Discord loop."""
+    url = os.environ.get("RELAY_URL", "")
+    print(f"Waking relay at {url}")
+    try:
+        await asyncio.to_thread(relay_client.wake)
+    except relay_client.RelayError as exc:
+        print(f"Relay did not wake: {exc}")
+        return
+    print("Relay awakened. You may run /start in Discord.")
+
+
 @client.event
 async def on_ready():
     tree.copy_global_to(guild=discord.Object(id=GUILD_ID))
     await tree.sync(guild=discord.Object(id=GUILD_ID))
     print(f"Logged in as {client.user}")
     if relay_client.enabled():
-        asyncio.create_task(asyncio.to_thread(relay_client.wake))
-        print(f"Waking relay at {os.environ.get('RELAY_URL')}")
+        asyncio.create_task(announce_relay())
 
 
 @client.event
