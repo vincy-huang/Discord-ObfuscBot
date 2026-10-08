@@ -1,0 +1,20 @@
+# Same blueprint as ../render.yaml. Root directory is relay when the repo is discord_bot.
+services:
+  - type: web
+    name: capitalization-relay
+    runtime: python
+    plan: free
+    rootDir: relay
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB
+        value: capitalization
+      - key: RELAY_TOKEN
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+

@@ -391,22 +391,26 @@ async def start(
     if not isinstance(room, discord.TextChannel):
         await interaction.response.send_message("Run this in the session channel.", ephemeral=True)
         return
-    assignment = load_assignment(session_id)
+    await interaction.response.defer(ephemeral=True)
+    try:
+        assignment = load_assignment(session_id)
+    except relay_client.RelayError as exc:
+        await interaction.followup.send(f"Relay did not answer. {exc}", ephemeral=True)
+        return
     if assignment is None:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"No sealed row for {session_id}. Do not guess the arm.",
             ephemeral=True,
         )
         return
     if assignment["condition"] not in ("ai", "human"):
-        await interaction.response.send_message("Sealed row is unusable. Ask the supervisor.", ephemeral=True)
+        await interaction.followup.send("Sealed row is unusable. Ask the supervisor.", ephemeral=True)
         return
     try:
         prompt = style_path(assignment["style"])
     except FileNotFoundError:
-        await interaction.response.send_message("Prompt file missing. Ask the supervisor.", ephemeral=True)
+        await interaction.followup.send("Prompt file missing. Ask the supervisor.", ephemeral=True)
         return
-    await interaction.response.defer(ephemeral=True)
     guild = interaction.guild
     role = staff_role(guild)
     staff_cat = find_category(guild, STAFF_CATEGORY)
@@ -502,6 +506,9 @@ async def on_ready():
     tree.copy_global_to(guild=discord.Object(id=GUILD_ID))
     await tree.sync(guild=discord.Object(id=GUILD_ID))
     print(f"Logged in as {client.user}")
+    if relay_client.enabled():
+        asyncio.create_task(asyncio.to_thread(relay_client.wake))
+        print(f"Waking relay at {os.environ.get('RELAY_URL')}")
 
 
 @client.event
