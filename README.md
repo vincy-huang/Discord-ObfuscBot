@@ -29,7 +29,6 @@ This is a Discord chatbot tool designed to create a space for hosting experiment
 
 ## Reference
 Signh, A. (2024). *UBC-Discord-Bot*. GitHub. https://github.com/wwbp/UBC-Discord-Bot/
- chatbot-backend.
 
 Miras, P. (2026). *chatbot-backend*. GitHub. https://github.co (Private repository).
 
