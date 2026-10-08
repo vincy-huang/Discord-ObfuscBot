@@ -1,4 +1,9 @@
-"""Stack session JSONL files into an analysis CSV. Does not call Discord or the model."""
+"""Stack session JSONL files into an analysis CSV. Does not call Discord or the model.
+
+The live stacked rows are written by the relay into Mongo. Use
+`python relay/manage.py export` for the OSF copy. This script remains the
+local fallback when a session was logged only to transcripts/.
+"""
 
 import csv
 import json

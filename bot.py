@@ -1,6 +1,6 @@
 """Stage-1 Discord bot. The session RA does not enter or see the condition.
 
-assignments.csv is sealed. /start looks up the row and never repeats it.
+assignments.csv is sealed. /start looks up the row from the relay and never repeats it.
 The live Staff channel shows a timer and a turn count, not message text.
 Condition is recovered after the slot from who spoke: a bot turn means the
 receiver was the bot; another human turn means that account was the receiver.
@@ -19,6 +19,8 @@ import discord
 from discord import app_commands
 from dotenv import load_dotenv
 from openai import OpenAI
+
+import relay_client
 
 ROOT = Path(__file__).resolve().parent
 PROMPTS = ROOT / "prompts"
@@ -78,6 +80,8 @@ def append_jsonl(session_id: str, row: dict) -> None:
     path = TRANSCRIPTS / f"{session_id}.jsonl"
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    if relay_client.enabled():
+        relay_client.post_event(row)
 
 
 def style_path(style: str) -> Path:
@@ -88,7 +92,9 @@ def style_path(style: str) -> Path:
 
 
 def load_assignment(session_id: str) -> dict | None:
-    """Condition comes from the RA's randomization file, not from who joined."""
+    """Condition comes from Mongo through the relay, not from who joined."""
+    if relay_client.enabled():
+        return relay_client.assignment(session_id)
     if not ASSIGNMENTS_PATH.exists():
         return None
     with ASSIGNMENTS_PATH.open(encoding="utf-8", newline="") as handle:
@@ -188,6 +194,20 @@ def timer_text(minutes_total: int, left: int) -> str:
     )
 
 
+ENDED_TEXT = (
+    "Time is up. This conversation has ended. "
+    "Please stop typing and wait for the researcher."
+)
+
+
+def is_system_notice(text: str) -> bool:
+    return (
+        text.startswith("Time left:")
+        or text.startswith("Time is up")
+        or text == "One minute left."
+    )
+
+
 async def backfill(session: dict) -> int:
     channel = client.get_channel(session["channel_id"])
     if channel is None:
@@ -198,7 +218,7 @@ async def backfill(session: dict) -> int:
         if msg.created_at < started or not msg.content:
             continue
         role = author_role(session, msg.author.id)
-        if role == "other":
+        if role == "other" or is_system_notice(msg.content):
             continue
         when = msg.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
         if record_turn(session, msg.author.id, role, msg.content, when, msg.id):
@@ -211,6 +231,26 @@ async def slot_status(session: dict, line: str) -> None:
     if channel is None:
         return
     await channel.send(line[:1900])
+
+
+async def participant_channel(channel_id: int):
+    channel = client.get_channel(channel_id)
+    if channel is None:
+        channel = await client.fetch_channel(channel_id)
+    return channel
+
+
+async def announce_ended(session: dict) -> None:
+    """Same stop line in the AI arm and the human arm. Not a transcript turn."""
+    room = await participant_channel(session["channel_id"])
+    notice_id = session.get("timer_message_id")
+    if notice_id:
+        try:
+            notice = await room.fetch_message(int(notice_id))
+            await notice.edit(content=ENDED_TEXT)
+        except (discord.HTTPException, discord.NotFound):
+            pass
+    await room.send(ENDED_TEXT)
 
 
 async def lock_bot_out(channel_id: int) -> None:
@@ -234,6 +274,8 @@ async def ai_reply(session: dict, channel: discord.TextChannel, latest: discord.
         if msg.created_at < started or not msg.content:
             continue
         if msg.author.id not in (session["sharer_id"], client.user.id):
+            continue
+        if is_system_notice(msg.content):
             continue
         role = "assistant" if msg.author.id == client.user.id else "user"
         history.append({"role": role, "content": msg.content})
@@ -264,8 +306,12 @@ async def close_session(session_id: str, why: str) -> str:
     match["stop_reason"] = why
     save_sessions(sessions)
     task = TIMERS.pop(session_id, None)
-    if task is not None:
+    if task is not None and task is not asyncio.current_task():
         task.cancel()
+    try:
+        await announce_ended(match)
+    except discord.HTTPException:
+        pass
     added = await backfill(match)
     append_jsonl(
         session_id,
@@ -282,10 +328,7 @@ async def close_session(session_id: str, why: str) -> str:
             "minutes": match.get("minutes"),
         },
     )
-    room = client.get_channel(match["channel_id"])
-    if room is not None:
-        await room.send("Time is up. Please stop typing.")
-    await slot_status(match, f"{session_id} closed. Turns logged. Do not open the transcript until Stage 2 is done.")
+    await slot_status(match, f"{session_id} closed. Participants were told to stop. Do not open the transcript until Stage 2 is done.")
     await lock_bot_out(match["channel_id"])
     await lock_bot_out(match["staff_log_id"])
     return f"Closed {session_id}. Backfilled {added} turn(s)."
@@ -298,16 +341,22 @@ async def run_timer(session_id: str) -> None:
     end = parse_utc(session["started_utc"]).timestamp() + session["minutes"] * 60
     warned = False
     channel = client.get_channel(session["channel_id"])
-    notice = None
-    if channel is not None:
-        notice = await channel.send(timer_text(session["minutes"], session["minutes"] * 60))
-        try:
-            await notice.pin()
-        except discord.HTTPException:
-            pass
+    if channel is None:
+        channel = await client.fetch_channel(session["channel_id"])
+    notice = await channel.send(timer_text(session["minutes"], session["minutes"] * 60))
+    try:
+        await notice.pin()
+    except discord.HTTPException:
+        pass
+    sessions = load_sessions()
+    for row in sessions.values():
+        if row.get("session_id") == session_id and row.get("open"):
+            row["timer_message_id"] = notice.id
+            save_sessions(sessions)
+            break
     while True:
         left = int(end - datetime.now(timezone.utc).timestamp())
-        if notice is not None:
+        if left > 0:
             try:
                 await notice.edit(content=timer_text(session["minutes"], left))
             except discord.HTTPException:
@@ -380,7 +429,7 @@ async def start(
         "session_id": session_id,
         "condition": assignment["condition"],
         "condition_stamped": assignment["condition"],
-        "condition_source": "assignments.csv",
+        "condition_source": "mongo" if relay_client.enabled() else "assignments.csv",
         "n_present": None,
         "style": assignment["style"],
         "prompt_file": str(prompt),
@@ -402,7 +451,7 @@ async def start(
             "event": "session_open",
             "session_id": session_id,
             "condition": assignment["condition"],
-            "condition_source": "assignments.csv",
+            "condition_source": "mongo" if relay_client.enabled() else "assignments.csv",
             "n_present": None,
             "participant_discord_id": str(sharer.id),
             "author_role": "sharer",
