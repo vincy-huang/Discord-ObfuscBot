@@ -1,6 +1,11 @@
 """Stage-1 Discord bot. The session RA does not enter or see the condition.
 
 assignments.csv is sealed. /start looks up the row from the relay and never repeats it.
+/start does not take a user option: Discord's member picker lists the channel
+and would show one person versus two. After /start the bot posts an
+"I'm sharing" button. The first human click claims the sharer. Staff and RA
+cannot claim. The username is written to the staff log only. The next other
+human message is the receiver.
 The live Staff channel shows a timer and a turn count, not message text.
 Condition is recovered after the slot from who spoke: a bot turn means the
 receiver was the bot; another human turn means that account was the receiver.
@@ -55,6 +60,7 @@ intents.members = True
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 TIMERS: dict[str, asyncio.Task] = {}
+CLAIM_LOCKS: dict[int, asyncio.Lock] = {}
 
 
 def utc_now() -> str:
@@ -182,6 +188,22 @@ def author_role(session: dict, author_id: int) -> str:
     return "other"
 
 
+def is_command_member(member) -> bool:
+    """Staff and RA must not become the sharer by typing in the room."""
+    roles = getattr(member, "roles", [])
+    return any(getattr(role, "name", None) in COMMAND_ROLE_NAMES for role in roles)
+
+
+def claim_receiver(session: dict, author_id: int) -> str:
+    """Sharer comes from the button. A later other human is the receiver."""
+    if session.get("sharer_id") is None:
+        return "other"
+    if author_id == session.get("receiver_id") or session.get("receiver_id") is None:
+        session["receiver_id"] = author_id
+        return "receiver"
+    return "other"
+
+
 def clock(seconds: int) -> str:
     seconds = max(0, int(seconds))
     return f"{seconds // 60}:{seconds % 60:02d}"
@@ -200,11 +222,19 @@ ENDED_TEXT = (
 )
 
 
+CLAIM_TEXT = "If you were asked to share good news, click I'm sharing. Only the first click counts."
+CLAIMED_TEXT = "Sharing started. Send your news when you are ready."
+CLAIM_NUDGE = "Click I'm sharing before you send your news."
+
+
 def is_system_notice(text: str) -> bool:
     return (
         text.startswith("Time left:")
         or text.startswith("Time is up")
         or text == "One minute left."
+        or text == CLAIM_TEXT
+        or text == CLAIMED_TEXT
+        or text == CLAIM_NUDGE
     )
 
 
@@ -320,7 +350,7 @@ async def close_session(session_id: str, why: str) -> str:
             "session_id": session_id,
             "condition": match["condition"],
             "n_present": match.get("n_present"),
-            "participant_discord_id": str(match["sharer_id"]),
+            "participant_discord_id": "" if match.get("sharer_id") is None else str(match["sharer_id"]),
             "author_role": "sharer",
             "receiver_discord_id": None if match.get("receiver_id") is None else str(match["receiver_id"]),
             "ts_utc": when,
@@ -375,13 +405,11 @@ async def run_timer(session_id: str) -> None:
 @tree.command(name="start", description="Start the slot. Does not ask for or show the condition.")
 @app_commands.describe(
     session_id="Study id only, e.g. s014",
-    sharer="The participant instructed to share the good news",
     minutes="Visible time limit. Default 8.",
 )
 async def start(
     interaction: discord.Interaction,
     session_id: str,
-    sharer: discord.Member,
     minutes: app_commands.Range[int, 1, 15] = 8,
 ):
     if not is_staff(interaction):
@@ -439,7 +467,7 @@ async def start(
         "prompt_file": str(prompt),
         "channel_id": room.id,
         "staff_log_id": slot.id,
-        "sharer_id": sharer.id,
+        "sharer_id": None,
         "receiver_id": None,
         "started_utc": started,
         "open": True,
@@ -457,7 +485,7 @@ async def start(
             "condition": assignment["condition"],
             "condition_source": "mongo" if relay_client.enabled() else "assignments.csv",
             "n_present": None,
-            "participant_discord_id": str(sharer.id),
+            "participant_discord_id": "",
             "author_role": "sharer",
             "receiver_discord_id": None,
             "ts_utc": started,
@@ -467,10 +495,15 @@ async def start(
         },
     )
     await slot.send(f"{session_id} started. Time limit {minutes}:00. No message text in this channel.")
+    claim_msg = await room.send(CLAIM_TEXT, view=ClaimView())
+    sessions = load_sessions()
+    sessions[str(room.id)]["claim_message_id"] = claim_msg.id
+    save_sessions(sessions)
     TIMERS[session_id] = asyncio.create_task(run_timer(session_id))
     await interaction.followup.send(
-        f"Started {session_id}. Participants can see a {minutes}:00 timer. "
-        "The staff channel shows time left and turn count only.",
+        f"Started {session_id}. Participants can see a {minutes}:00 timer and an I'm sharing button. "
+        "The staff channel shows time left and turn count only. "
+        "Do not type in this channel, and do not click the button.",
         ephemeral=True,
     )
 
@@ -513,8 +546,66 @@ async def announce_relay() -> None:
     print("Relay awakened. You may run /start in Discord.")
 
 
+class ClaimView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="I'm sharing",
+        style=discord.ButtonStyle.primary,
+        custom_id="claim_sharer",
+    )
+    async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await claim_sharer(interaction, button)
+
+
+async def claim_sharer(interaction: discord.Interaction, button: discord.ui.Button) -> None:
+    channel = interaction.channel
+    if channel is None:
+        await interaction.response.send_message("Run this in the session channel.", ephemeral=True)
+        return
+    if is_command_member(interaction.user):
+        await interaction.response.send_message("Staff cannot claim the sharer.", ephemeral=True)
+        return
+    lock = CLAIM_LOCKS.setdefault(channel.id, asyncio.Lock())
+    async with lock:
+        sessions = load_sessions()
+        session = sessions.get(str(channel.id))
+        if session is None or not session.get("open"):
+            await interaction.response.send_message("This slot is not open.", ephemeral=True)
+            return
+        if session.get("sharer_id") is not None:
+            await interaction.response.send_message("Someone already clicked I'm sharing.", ephemeral=True)
+            return
+        session["sharer_id"] = interaction.user.id
+        sessions[str(channel.id)] = session
+        save_sessions(sessions)
+        append_jsonl(
+            session["session_id"],
+            {
+                "event": "sharer_claim",
+                "session_id": session["session_id"],
+                "condition": session["condition"],
+                "n_present": session.get("n_present"),
+                "participant_discord_id": str(interaction.user.id),
+                "author_role": "sharer",
+                "ts_utc": utc_now(),
+                "text": str(interaction.user),
+            },
+        )
+    button.disabled = True
+    view = ClaimView()
+    view.children[0].disabled = True
+    await interaction.response.edit_message(content=CLAIMED_TEXT, view=view)
+    await slot_status(
+        session,
+        f"{session['session_id']} sharer claimed: {interaction.user} ({interaction.user.id}).",
+    )
+
+
 @client.event
 async def on_ready():
+    client.add_view(ClaimView())
     tree.copy_global_to(guild=discord.Object(id=GUILD_ID))
     await tree.sync(guild=discord.Object(id=GUILD_ID))
     print(f"Logged in as {client.user}")
@@ -530,12 +621,20 @@ async def on_message(message: discord.Message):
     session = sessions.get(str(message.channel.id))
     if session is None or not session.get("open"):
         return
-    if message.author.id not in (session.get("sharer_id"), client.user.id) and message.author.bot:
+    if message.author.bot and message.author.id != client.user.id:
+        return
+    if message.author.id != client.user.id and is_command_member(message.author):
         return
     role = author_role(session, message.author.id)
-    if role == "other" and not message.author.bot:
-        session["receiver_id"] = message.author.id
-        role = "receiver"
+    if role == "other" and session.get("sharer_id") is None:
+        if not session.get("claim_nudged"):
+            session["claim_nudged"] = True
+            sessions[str(message.channel.id)] = session
+            save_sessions(sessions)
+            await message.channel.send(CLAIM_NUDGE)
+        return
+    if role == "other":
+        role = claim_receiver(session, message.author.id)
         sessions[str(message.channel.id)] = session
         save_sessions(sessions)
     if role == "other":
