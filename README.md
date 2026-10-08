@@ -11,6 +11,16 @@ This is a Discord chatbot tool designed to create a space for hosting experiment
 1. [***Requirements***]
     * [Python & package requirements] for running the bot 
         > (This is the minimal requirement for running the bot locally)
+        > - Python 3.14.7
+
+        > - discord.py>=2.4
+        > - python-dotenv>=1.0
+        > - openai>=1.40
+        > - fastapi>=0.115
+        > - uvicorn>=0.30
+        > - pymongo>=4.8
+        > - python-dotenv>=1.0
+
     * [Render] for backend
     * [MongoDB Atlas] for cloud database
         > Randomized participant condition sheet & session data exports storage
