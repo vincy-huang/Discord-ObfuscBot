@@ -65,7 +65,7 @@ Create:
    > * If `minutes` has been set to 10, the following message will pop up in the Discord channel after `/start`:
    >   
    >   ```
-   >   Time left: 0:12 of 8:00. The conversation ends when this reaches 0:00.
+   >   Time left: 7:59 of 8:00. The conversation ends when this reaches 0:00.
    >   ```
 
 
