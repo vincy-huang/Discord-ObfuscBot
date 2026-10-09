@@ -53,12 +53,21 @@ Create:
 1. [***Open Discord***, leave it open]
 1. [***Activate environment for python scripts***]
 1. Copy and paste the following command into your Terminal and press **Enter** on your keyboard: 
-    > ```python bot.py```
-1. Wait until the "Relay awakened. You may run /start in Discord." message pops up in the Terminal interface:
+    > ```
+    > python bot.py
+    > ```
+1. Wait until a `Relay awakened. You may run /start in Discord` message shows up in the Terminal interface:
    <img src="images/initiate-bot.png" width="600">
+1. [Switch back to Discord]
+1. [Confirm with the participants that they've completed the Qualtrics intake form, which contains their customized Discord channel link for their pre-randomized condition.]
+1. [When ready, start the chat by typing in the slash command `/start` and fill in the `session_id` and `minutes` fields.
+   > * `minutes` sets a timer for the chat.
+   > * If `minutes` has been set to 10, the following message will pop up in the Discord channel after `/start`:
+   >   
+   >   ```
+   >   Time left: 0:12 of 8:00. The conversation ends when this reaches 0:00.
+   >   ```
 
-## How to Test the Bot on One Machine
-> [**Work in progress**]
 
 
 > ***🚧 Instruction still in progress 🚧 ***
