@@ -1,7 +1,7 @@
 # **Discord ObfuscBot**
 ## Condition Masking Interface
 
-This is a Discord chatbot tool designed to create a space for hosting experimental chats between a human participant pair or between a human participant and an chatbot. This tool is made to make the experimental conditions blind to the research experimenter as much as possible within the constraints of the Discord environment through tinkering arround the various permissions on Discord. By serving as the sole intermediary between the researcher and the participants, this tool eliminates experimenter bias during live data collection and interaction.
+This is a Discord chatbot tool designed to create a space for hosting experimental chats between a human participant pair or between a human participant and an chatbot. This tool is made to make the experimental conditions blind to the research experimenter as much as possible within the constraints of the Discord environment through tinkering arround the various permissions on Discord. By serving as the sole intermediary between the researcher and the participants, this tool eliminates experimenter bias during live data collection and interaction. This tool draws on the previous tools developed at the UBC Happy Lab by Miras et al. (2026) and Signh (2024).
 
 ## Set Up the Study Discord Server: Roles, Categories, and Channels
 ### Installation & Discord Server Set Up
@@ -74,9 +74,9 @@ Create:
 
 
 ## Reference
-Signh, A. (2024). *UBC-Discord-Bot*. GitHub. https://github.com/wwbp/UBC-Discord-Bot/
+Miras, P., Lu, M., & Gong, B. (2026). *chatbot-backend*. GitHub. https://github.co (Private repository).
 
-Miras, P. (2026). *chatbot-backend*. GitHub. https://github.co (Private repository).
+Signh, A. (2024). *UBC-Discord-Bot*. GitHub. https://github.com/wwbp/UBC-Discord-Bot/
 
 
 ## License
