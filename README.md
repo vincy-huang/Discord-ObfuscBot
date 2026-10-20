@@ -4,19 +4,45 @@
 This is a Discord chatbot tool designed to create a space for hosting experimental chats between a human participant pair or between a human participant and an chatbot. This tool is made to make the experimental conditions blind to the research experimenter as much as possible within the constraints of the Discord environment through tinkering arround the various permissions on Discord. By serving as the sole intermediary between the researcher and the participants, this tool eliminates experimenter bias during live data collection and interaction. This tool draws on the previous tools developed at the UBC Happy Lab by Miras et al. (2026) and Signh (2024).
 
 ## Set Up the Study Discord Server: Roles, Categories, and Channels
-### Installation & Discord Server Set Up
-1. [Download Discord]
-1. [Create a server]
-1. [Discord Developer Portal]
-   * Bot permission specifications & get the app link
-1. [Allow Discord Developer Mode]
+### Discord Installation & Server Set Up
+1. Download Discord  
+   * Go to [discord.com/download](https://discord.com/download) and install the desktop app (recommended for the session RA so the bot and Discord can stay open side-by-side). Create or sign in with a lab-owned account. Do not use a personal account.
+
+1. Create a server  
+   * In Discord, click the + next to the server list → Create My Own → For me and my friends. Name it something study-specific (e.g., “Capitalization Study”). Turn Community features **off**. Do not enable discovery or a public invite. This server stays private and invite-only.
+1. Discord Developer Portal  
+   - Go to [discord.com/developers/applications](https://discord.com/developers/applications) and log in with the same lab account.  
+   - Click **New Application**, give it a study name (the bot will appear as “Sam” or whatever display name you set), and create it.  
+   - On the Bot page:  
+     - Reset Token and copy it into your `.env` later (never commit or share it).  
+     - Turn **Message Content Intent** and **Server Members Intent** on. Presence Intent stays off. Public Bot stays off.  
+   - On the OAuth2 → URL Generator page:  
+     - Scopes: tick `bot` and `applications.commands`.  
+     - Bot Permissions: View Channels, Send Messages, Manage Channels, Manage Roles.  
+       Do **not** tick Read Message History, Administrator, or anything else.  
+     - Copy the generated URL, open it, and add the bot **only** to this study server.  
+   - Right-click the server icon → Copy Server ID. That number goes in `DISCORD_GUILD_ID`.
+  
+1. Allow Discord Developer Mode  
+   User Settings (gear) → Advanced → turn **Developer Mode** on. This lets you copy channel and server IDs later.
+
 ### Create Discord Roles
-Create:
-   * Staff
-   * RA
-   * Condition-1
-   * Condition-2
-        > Note: The study supervisors may want to hide what `Condition-1` and `Condition-1` really are!
+Create these roles (Server Settings → Roles). Order and permissions matter:
+
+- **Staff** (capital S)  
+  No Administrator. Assign only to the lab account and any supervisor who needs to see the staff logs. Never assign to a participant or to the session RA who is running the live session.
+
+- **RA**  
+  Can run the slash commands (`/start`, `/stop`, `/status`) but does **not** gain access to the staff-log channels. Other permissions stay off so the channel header does not show a member count.
+
+- **Condition-1**  
+- **Condition-2**  
+
+> Note: The study supervisors may want to hide what `Condition-1` and `Condition-2` really are!  
+> These are opaque invite roles. `Condition-1` might be used for the AI arm and `Condition-2` for the human arm (mapping lives only with supervisors). Do not hoist the roles and do not give them a colour. The bot itself never reads these roles; it reads the sealed assignment from the relay.
+
+Drag the bot’s role **above** the Staff role. Otherwise channel overwrites fail with a permissions error.
+
 ### Create Discord Categories:
 Create:
    * Staffs
@@ -28,7 +54,7 @@ Create:
    * `s-pi01` for pilot 01
 
 
-## Installation
+## Script Installation 
 1. Download this repo's latest release onto your local machine. The newly saved folder should have the same name as this repo `Discord-ObfuscBot`.
 1. Open your machine's Terminal application at the saved `Discord-ObfuscBot` folder.
 1. [***Requirements***]
